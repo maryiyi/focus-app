@@ -334,7 +334,7 @@
       color: var(--text-primary);
       padding: 4px 12px;
       border-radius: var(--radius-pill);
-      font-size: 16px; /* Prevents iOS auto-zoom on input focus */
+      font-size: 16px;
       transform: scale(0.85);
       transform-origin: center;
       width: 120px;
@@ -547,7 +547,7 @@
     /* View 3: Habits Tracker (S) */
     .section-header {
       display: flex;
-      align-items: baseline;
+      align-items: center;
       justify-content: space-between;
       margin-bottom: 20px;
       flex-wrap: wrap;
@@ -571,6 +571,15 @@
       flex-direction: column;
       gap: 10px;
       width: 100%;
+    }
+
+    .empty-habits-note {
+      padding: 24px 18px;
+      background: var(--bg-surface);
+      border-radius: var(--radius-md);
+      color: var(--text-muted);
+      font-size: 13px;
+      text-align: center;
     }
 
     .habit-card {
@@ -734,7 +743,7 @@
 
     .habit-input {
       flex: 1;
-      font-size: 16px; /* Prevents iOS Safari zoom on focus */
+      font-size: 16px;
       color: var(--text-primary);
       min-width: 140px;
     }
@@ -782,6 +791,27 @@
       flex-direction: column;
       gap: 24px;
       width: 100%;
+    }
+
+    .clear-history-btn {
+      font-size: 12px;
+      color: var(--text-muted);
+      background: var(--bg-surface);
+      padding: 5px 12px;
+      border-radius: var(--radius-pill);
+      border: 1px solid transparent;
+      transition: color var(--transition), background-color var(--transition), border-color var(--transition);
+    }
+
+    .clear-history-btn:hover {
+      color: var(--text-primary);
+      background: var(--bg-elevated);
+    }
+
+    .clear-history-btn.confirming {
+      color: #f87171;
+      background: rgba(248, 113, 113, 0.12);
+      border-color: rgba(248, 113, 113, 0.3);
     }
 
     .metric-cards {
@@ -1152,6 +1182,7 @@
             <h2 class="section-title">focus intensity &amp; metrics</h2>
             <p class="section-subtitle" id="analyticsRangeLabel">rolling 24-week activity log</p>
           </div>
+          <button type="button" class="clear-history-btn" id="clearHistoryBtn">clear all history</button>
         </div>
 
         <div class="metric-cards">
@@ -1202,7 +1233,7 @@
         <div class="subjects-panel">
           <div class="heatmap-header">
             <span>subject distribution</span>
-            <span id="topSubjectLabel">all subjects</span>
+            <span id="topSubjectLabel">no sessions yet</span>
           </div>
           <div class="subject-bar-stack" id="subjectBarStack"></div>
           <div class="subject-legend-list" id="subjectLegendList"></div>
@@ -1230,7 +1261,13 @@
     (function () {
       'use strict';
 
-      const STORAGE_KEY = 'aura_focus_state_v2';
+      // Clean production storage key; purge any legacy demo keys
+      const STORAGE_KEY = 'aura_focus_prod_v1';
+      try {
+        localStorage.removeItem('focus_os_state_v1');
+        localStorage.removeItem('aura_focus_state_v2');
+      } catch (_) {}
+
       const DAILY_GOAL_MINUTES = 180; // 3h 00m
 
       // Dusty Sage cohesive palette for subject distribution
@@ -1274,67 +1311,13 @@
         return `${h}h ${String(m).padStart(2, '0')}m`;
       }
 
-      // Generate realistic 35-day demo data when localStorage is empty
-      function createInitialState() {
-        const today = new Date();
-        const subjects = ['#math', '#coding', '#ai', '#systems'];
-        const habits = [
-          { id: 'h1', title: 'morning mobility', target: '10m', freq: 'daily', goalDays: 7, history: {} },
-          { id: 'h2', title: 'review algorithms', target: '2 problems', freq: 'weekdays', goalDays: 5, history: {} },
-          { id: 'h3', title: 'read 20 pages', target: '20 pages', freq: 'daily', goalDays: 7, history: {} }
-        ];
-
-        const daysLog = {};
-
-        const sampleFocus = [
-          85, 130, 50, 155, 190, 0, 95,
-          120, 145, 75, 185, 160, 45, 0,
-          110, 135, 175, 90, 210, 60, 30,
-          140, 165, 125, 195, 150, 80, 45,
-          130, 170, 145, 185, 115, 160, 75
-        ];
-
-        for (let i = 34; i >= 0; i--) {
-          const dt = addDays(today, -i);
-          const key = toDateKey(dt);
-          const dayOfWeek = dt.getDay();
-          const mins = sampleFocus[(34 - i) % sampleFocus.length];
-          const blocks = mins > 0 ? Math.max(1, Math.round(mins / 25)) : 0;
-
-          const bySubject = {};
-          if (mins > 0) {
-            const s1 = subjects[(34 - i) % subjects.length];
-            const s2 = subjects[(35 - i) % subjects.length];
-            const split = Math.round(mins * 0.62);
-            bySubject[s1] = split;
-            bySubject[s2] = mins - split;
-          }
-
-          daysLog[key] = {
-            minutes: mins,
-            blocks: blocks,
-            bySubject: bySubject
-          };
-
-          habits.forEach((h, idx) => {
-            if (i === 0) {
-              if (idx < 2) h.history[key] = true;
-            } else {
-              const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-              if (h.freq === 'weekdays' && isWeekend) {
-                if ((i + idx) % 5 === 0) h.history[key] = true;
-              } else {
-                if ((i + idx) % 4 !== 0) h.history[key] = true;
-              }
-            }
-          });
-        }
-
+      // Strictly empty initial state: zero sessions, zero blocks, zero streak
+      function createEmptyState() {
         return {
-          subjects,
+          subjects: ['#math', '#coding', '#ai'],
           selectedSubject: '#coding',
-          habits,
-          daysLog
+          habits: [],
+          daysLog: {}
         };
       }
 
@@ -1342,19 +1325,23 @@
         try {
           const raw = localStorage.getItem(STORAGE_KEY);
           if (!raw) {
-            const initial = createInitialState();
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(initial));
-            return initial;
+            const empty = createEmptyState();
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(empty));
+            return empty;
           }
           const parsed = JSON.parse(raw);
-          if (!parsed || !parsed.daysLog || !Array.isArray(parsed.subjects) || !Array.isArray(parsed.habits)) {
-            const fallback = createInitialState();
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(fallback));
-            return fallback;
-          }
-          return parsed;
+          return {
+            subjects: Array.isArray(parsed?.subjects) && parsed.subjects.length > 0
+              ? parsed.subjects
+              : ['#math', '#coding', '#ai'],
+            selectedSubject: typeof parsed?.selectedSubject === 'string'
+              ? parsed.selectedSubject
+              : '#coding',
+            habits: Array.isArray(parsed?.habits) ? parsed.habits : [],
+            daysLog: parsed?.daysLog && typeof parsed.daysLog === 'object' ? parsed.daysLog : {}
+          };
         } catch (_) {
-          return createInitialState();
+          return createEmptyState();
         }
       }
 
@@ -1378,7 +1365,7 @@
       let elapsedUnloggedSeconds = 0;   // Unflushed focus seconds
       let currentView = 'timer';        // 'timer' | 'habits' | 'analytics' | 'zen'
 
-      // Optional inline Web Worker so background ticks stay alive longer on mobile/desktop
+      // Inline Web Worker so background ticks stay alive longer on mobile/desktop
       function initBackgroundWorker() {
         try {
           const blob = new Blob([`
@@ -1439,6 +1426,7 @@
       const subjectLegendList = document.getElementById('subjectLegendList');
       const topSubjectLabel = document.getElementById('topSubjectLabel');
       const heatTooltip = document.getElementById('heatTooltip');
+      const clearHistoryBtn = document.getElementById('clearHistoryBtn');
 
       // Haptics & Web Audio API (iOS Safari Safe Unlock)
       let audioCtx = null;
@@ -1950,6 +1938,15 @@
         const todayKey = toDateKey(new Date());
         const weekDays = getCurrentWeekDates();
 
+        if (state.habits.length === 0) {
+          const emptyNote = document.createElement('div');
+          emptyNote.className = 'empty-habits-note';
+          emptyNote.textContent = 'no habits added yet. add a daily ritual below to track consistency.';
+          habitsList.appendChild(emptyNote);
+          habitConsistencyLabel.innerHTML = `today's consistency: <span class="stat-pct">0%</span> (0/0) · weekly score: <span class="stat-pct">0%</span>`;
+          return;
+        }
+
         let completedTodayCount = 0;
         let weeklyChecks = 0;
         let weeklyPossible = 0;
@@ -2131,13 +2128,13 @@
         for (let i = 0; i < 365; i++) {
           const key = toDateKey(addDays(today, -i));
           const entry = state.daysLog[key];
-          const hasFocus = entry && entry.minutes > 0;
-          const hasHabit = state.habits.some((h) => h.history && h.history[key]);
+          const hasFocus = Boolean(entry && entry.minutes > 0);
+          const hasHabit = state.habits.some((h) => Boolean(h.history && h.history[key]));
 
           if (hasFocus || hasHabit) {
             streak += 1;
           } else {
-            if (i === 0) continue;
+            if (i === 0) continue; // If today has 0 so far, check if yesterday had an active streak
             break;
           }
         }
@@ -2250,6 +2247,37 @@
           });
         }
       }
+
+      // Clear All History Button (with 2-step inline confirmation)
+      let clearConfirmTimeout = null;
+      clearHistoryBtn.addEventListener('click', () => {
+        if (!clearHistoryBtn.classList.contains('confirming')) {
+          clearHistoryBtn.classList.add('confirming');
+          clearHistoryBtn.textContent = 'confirm clear?';
+          if (clearConfirmTimeout) clearTimeout(clearConfirmTimeout);
+          clearConfirmTimeout = setTimeout(() => {
+            clearHistoryBtn.classList.remove('confirming');
+            clearHistoryBtn.textContent = 'clear all history';
+          }, 3500);
+          return;
+        }
+
+        if (clearConfirmTimeout) clearTimeout(clearConfirmTimeout);
+        clearHistoryBtn.classList.remove('confirming');
+        clearHistoryBtn.textContent = 'clear all history';
+
+        // Wipe all logged focus sessions and habit history back to strictly zero
+        state.daysLog = {};
+        state.habits.forEach((h) => {
+          h.history = {};
+        });
+        elapsedUnloggedSeconds = 0;
+        saveState();
+
+        renderTimerDisplay();
+        renderHabits();
+        renderAnalytics();
+      });
 
       function positionTooltip(ev) {
         const pad = 14;
